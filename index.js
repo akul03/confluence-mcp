@@ -20,8 +20,27 @@ if (PORT) {
 
   const transports = {};
 
+  const CORS_HEADERS = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  };
+
   const httpServer = http.createServer(async (req, res) => {
-    if (req.method === 'GET' && req.url === '/sse') {
+    // Handle CORS preflight
+    if (req.method === 'OPTIONS') {
+      res.writeHead(200, CORS_HEADERS);
+      res.end();
+      return;
+    }
+
+    // Add CORS headers to all responses
+    Object.entries(CORS_HEADERS).forEach(([k, v]) => res.setHeader(k, v));
+
+    if (req.method === 'GET' && req.url === '/') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ status: 'ok' }));
+    } else if (req.method === 'GET' && req.url === '/sse') {
       const transport = new SSEServerTransport('/messages', res);
       transports[transport.sessionId] = transport;
       res.on('close', () => {
@@ -37,8 +56,8 @@ if (PORT) {
         res.writeHead(404).end('Session not found');
       }
     } else {
-      res.writeHead(200, { 'Content-Type': 'text/plain' });
-      res.end('Confluence MCP server is running. Connect via /sse');
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      res.end('Not found');
     }
   });
 
