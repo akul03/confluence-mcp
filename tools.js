@@ -16,11 +16,11 @@ export function registerTools(server) {
   // ─── 1. get_page_content ──────────────────────────────────────────────────
   server.tool(
     'get_page_content',
-    'Get the full content of the Confluence database page',
-    {},
-    async () => {
+    'Get the full content of a Confluence page. Uses the default page if no page_id is provided.',
+    { page_id: z.string().optional().describe('Confluence page ID (defaults to CONFLUENCE_PAGE_ID env var)') },
+    async ({ page_id } = {}) => {
       try {
-        const { title, body } = await fetchPageContent();
+        const { title, body } = await fetchPageContent(page_id);
         const text = stripHtml(body);
         return {
           content: [
@@ -84,7 +84,7 @@ export function registerTools(server) {
 
         const lines = results.map(
           (r, i) =>
-            `${i + 1}. **${r.title}**\n   ${r.excerpt ? r.excerpt.replace(/\n/g, ' ') : '(no excerpt)'}\n   URL: ${r.url}`
+            `${i + 1}. **${r.title}** (ID: ${r.id})\n   ${r.excerpt ? r.excerpt.replace(/\n/g, ' ') : '(no excerpt)'}\n   URL: ${r.url}\n   → Use fetch_any_page with page_id: "${r.id}" to read full content`
         );
         return textResult(`Search results for "${query}":\n\n${lines.join('\n\n')}`);
       } catch (err) {
@@ -97,11 +97,11 @@ export function registerTools(server) {
   // ─── 4. get_tasks ─────────────────────────────────────────────────────────
   server.tool(
     'get_tasks',
-    'Get all tasks and their completion status from the page',
-    {},
-    async () => {
+    'Get all tasks and their completion status from a Confluence page',
+    { page_id: z.string().optional().describe('Confluence page ID (defaults to CONFLUENCE_PAGE_ID env var)') },
+    async ({ page_id } = {}) => {
       try {
-        const { body } = await fetchPageContent();
+        const { body } = await fetchPageContent(page_id);
         const tasks = extractTasks(body);
         if (tasks.length === 0) {
           return textResult('No tasks found on this page.');
@@ -121,11 +121,11 @@ export function registerTools(server) {
   // ─── 5. get_incomplete_tasks ──────────────────────────────────────────────
   server.tool(
     'get_incomplete_tasks',
-    'Get only the incomplete/pending tasks',
-    {},
-    async () => {
+    'Get only the incomplete/pending tasks from a Confluence page',
+    { page_id: z.string().optional().describe('Confluence page ID (defaults to CONFLUENCE_PAGE_ID env var)') },
+    async ({ page_id } = {}) => {
       try {
-        const { body } = await fetchPageContent();
+        const { body } = await fetchPageContent(page_id);
         const tasks = extractTasks(body).filter(t => t.status !== 'complete');
         if (tasks.length === 0) {
           return textResult('No incomplete tasks found. All tasks are done!');
@@ -143,11 +143,11 @@ export function registerTools(server) {
   // ─── 6. get_completed_tasks ───────────────────────────────────────────────
   server.tool(
     'get_completed_tasks',
-    'Get only the completed/ticked tasks',
-    {},
-    async () => {
+    'Get only the completed/ticked tasks from a Confluence page',
+    { page_id: z.string().optional().describe('Confluence page ID (defaults to CONFLUENCE_PAGE_ID env var)') },
+    async ({ page_id } = {}) => {
       try {
-        const { body } = await fetchPageContent();
+        const { body } = await fetchPageContent(page_id);
         const tasks = extractTasks(body).filter(t => t.status === 'complete');
         if (tasks.length === 0) {
           return textResult('No completed tasks found.');
@@ -165,11 +165,11 @@ export function registerTools(server) {
   // ─── 7. get_page_summary ──────────────────────────────────────────────────
   server.tool(
     'get_page_summary',
-    'Get a structured summary of the page including sections and key info',
-    {},
-    async () => {
+    'Get a structured summary of a Confluence page including sections and task stats',
+    { page_id: z.string().optional().describe('Confluence page ID (defaults to CONFLUENCE_PAGE_ID env var)') },
+    async ({ page_id } = {}) => {
       try {
-        const { title, body } = await fetchPageContent();
+        const { title, body } = await fetchPageContent(page_id);
         const sections = extractSections(body);
         const tasks = extractTasks(body);
         const complete = tasks.filter(t => t.status === 'complete').length;
@@ -198,7 +198,27 @@ export function registerTools(server) {
     }
   );
 
-  // ─── 8. get_children_pages ────────────────────────────────────────────────
+  // ─── 8. fetch_any_page ────────────────────────────────────────────────────
+  server.tool(
+    'fetch_any_page',
+    'Fetch the full content of any Confluence page by its page ID. Use this after search_content returns IDs.',
+    { page_id: z.string().describe('Confluence page ID to fetch') },
+    async ({ page_id }) => {
+      try {
+        const { title, body, source } = await fetchPageContent(page_id);
+        const text = stripHtml(body);
+        if (!text.trim()) {
+          return textResult(`# ${title}\n\n(Page has no readable text content. Source: ${source})`);
+        }
+        return textResult(`# ${title}\n\n${text}`);
+      } catch (err) {
+        console.error('[tool:fetch_any_page]', err.message);
+        return errorResult(err.message);
+      }
+    }
+  );
+
+  // ─── 10. get_children_pages ───────────────────────────────────────────────
   server.tool(
     'get_children_pages',
     'Get all child pages or database entries',
@@ -219,7 +239,7 @@ export function registerTools(server) {
     }
   );
 
-  // ─── 9. debug_page ────────────────────────────────────────────────────────
+  // ─── 11. debug_page ───────────────────────────────────────────────────────
   server.tool(
     'debug_page',
     'Try all 5 API approaches against the Confluence page and show which one returns data. Useful for diagnosing Confluence Database pages.',
