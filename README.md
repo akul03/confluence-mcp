@@ -75,3 +75,5 @@ Use the SSE endpoint: `https://your-app.railway.app/sse`
 - "List all child pages in the database"
 - "What sections does this page have?"
 - "Find anything related to onboarding"
+
+<!-- redeployed Tue Mar 10 00:19:54 IST 2026 -->
