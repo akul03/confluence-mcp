@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "confluence": {
+      "command": "node",
+      "args": ["/Users/akulp/confluence-mcp/index.js"],
+      "env": {
+        "CONFLUENCE_EMAIL": "vir.singh@leadsquared.com",
+        "CONFLUENCE_API_TOKEN": "YOUR_API_TOKEN_HERE",
+        "CONFLUENCE_BASE_URL": "https://leadsquared.atlassian.net",
+        "CONFLUENCE_PAGE_ID": "2059927564",
+        "CONFLUENCE_CLOUD_ID": "16b74efd-5262-4c03-baca-f9e050acc04f"
+      }
+    }
+  }
+}
