@@ -4,6 +4,7 @@ import {
   fetchChildren,
   searchContent,
   fetchChildPageContent,
+  debugPage,
 } from './confluence.js';
 import { stripHtml, extractTasks, extractSections } from './utils.js';
 
@@ -213,6 +214,46 @@ export function registerTools(server) {
         return textResult(`Child pages (${children.length}):\n\n${lines.join('\n\n')}`);
       } catch (err) {
         console.error('[tool:get_children_pages]', err.message);
+        return errorResult(err.message);
+      }
+    }
+  );
+
+  // ─── 9. debug_page ────────────────────────────────────────────────────────
+  server.tool(
+    'debug_page',
+    'Try all 5 API approaches against the Confluence page and show which one returns data. Useful for diagnosing Confluence Database pages.',
+    { page_id: z.string().optional().describe('Page ID to debug (defaults to configured CONFLUENCE_PAGE_ID)') },
+    async ({ page_id } = {}) => {
+      try {
+        const result = await debugPage(page_id);
+        const lines = [
+          `## Debug results for page ID: ${result.pageId}`,
+          '',
+        ];
+        const approaches = [
+          ['Approach 1 — v2 /pages/{id}?body-format=storage', result.approach1_v2_storage],
+          ['Approach 1b — v1 /content/{id}?expand=body.storage,...', result.approach1b_v1_multi_expand],
+          ['Approach 2 — v2 /pages?parent-id={id}', result.approach2_v2_parent_id],
+          ['Approach 3 — CQL parent={id}', result.approach3_cql_parent],
+          ['Approach 4 — CQL space=LPD AND ancestor={id}', result.approach4_cql_ancestor],
+          ['Approach 5 — v2 /pages/{id}/children', result.approach5_v2_children],
+        ];
+        for (const [name, r] of approaches) {
+          const icon = r.hasData ? '✅' : r.status === 200 ? '⚠️ (200 but empty)' : `❌ (${r.status})`;
+          lines.push(`### ${icon} ${name}`);
+          lines.push(`- HTTP status: ${r.status}`);
+          lines.push(`- Has data: ${r.hasData}`);
+          if (r.error) lines.push(`- Error: ${JSON.stringify(r.error).slice(0, 300)}`);
+          if (r.rawKeys) lines.push(`- Response keys: ${r.rawKeys.join(', ')}`);
+          if (r.dataPreview !== undefined && r.dataPreview !== null) {
+            lines.push(`- Data preview: ${JSON.stringify(r.dataPreview).slice(0, 300)}`);
+          }
+          lines.push('');
+        }
+        return textResult(lines.join('\n'));
+      } catch (err) {
+        console.error('[tool:debug_page]', err.message);
         return errorResult(err.message);
       }
     }
